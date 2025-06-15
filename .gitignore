@@ -1,0 +1,20 @@
+# Node modules
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# dotenv environment variables file
+.env
+
+# Optional: OS or IDE-specific files
+.DS_Store
+*.swp
+.vscode/
