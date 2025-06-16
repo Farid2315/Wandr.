@@ -6,12 +6,17 @@ const Listing= require("./models/listing.js");
 const path= require("path");
 const methodoverride=require("method-override");
 const ejsmate=require("ejs-mate");
+const wrapAsync= require("./utils/wrapAsync.js");
+const ExpressError = require("./utils/ExpressError.js");
+const {ListingSchema} = require("./schema.js");
+
 app.use(methodoverride("_method"));
 app.use(express.urlencoded({extended: true}));
 app.engine('ejs',ejsmate);
 app.use(express.static(path.join(__dirname,"/public")));
 app.set("view engine", "ejs");
 app.set("views",path.join(__dirname,"views"));
+
 main()
 .then(()=>{
     console.log("db connected");
@@ -31,66 +36,96 @@ app.get("/",(req,res)=>
     res.send("app is listening");
 });
 
+const validateListing=(req,res,next)=>{
+    
+    let {error}= ListingSchema.validate(req.body);
+    //console.log(result);
+    if(error){
+        let errmsg= error.details.map((el)=>el.message).join(",");
+        throw new ExpressError(400, errmsg);
+    }else{
+        next();
+    }
+}
 
-app.get("/listings",async(req,res)=>{
+//all listings
+
+app.get("/listings",wrapAsync(async(req,res)=>{
 
     const listings = await Listing.find({});
     res.render("listings/index.ejs",{listings});
 
-});
+}));
+
+//show new lsiting form
 app.get("/listings/new",(req,res)=>
 {
      res.render("listings/new.ejs");
 });
 
-
-app.get("/listings/:id", async (req,res)=>
+//show particular lisitng
+app.get("/listings/:id", wrapAsync(async (req,res)=>
 {
    let {id}=req.params;
    const listing= await Listing.findById(id);
    res.render("listings/show.ejs",{listing});
 
-});
+}));
 
-app.post("/listings",async(req,res,next)=>{
-    try{
+// add new lsiting
+app.post("/listings",validateListing, wrapAsync(async(req,res)=>{
+    
+    // if(!req.body.listing){
+    //     throw new ExpressError(400,"send valid data for listing");
+    // }
+
      let newlisting= new Listing(req.body.listing);
     await newlisting.save();
     console.log(newlisting);
     res.redirect("/listings");
-    } catch(err){
-        next(err);  
-    }
+     
    
-});
+}));
 
-app.get("/listings/:id/edit", async(req,res)=>{
+//edit form
+
+app.get("/listings/:id/edit",wrapAsync( async(req,res)=>{
    let {id}=req.params;
    const listing= await Listing.findById(id);
    //console.log(listing);
    res.render("listings/edit.ejs", {listing});
-});
+}));
 
-app.put("/listings/:id",async (req,res)=>{
+//update lsiting
+app.put("/listings/:id",validateListing, wrapAsync(async (req,res)=>{
+     
+    // let result= ListingSchema.validate(req.body);
+    // console.log(result);
+    // if(result.error){
+    //     throw new ExpressError(400, result.error);
+    // }
     let {id}= req.params;
     await Listing.findByIdAndUpdate(id, {...req.body.listing});
     res.redirect(`/listings`);
-});
+}));
 
-app.delete("/listings/:id", async(req,res)=>{
+//delete listing
+app.delete("/listings/:id", wrapAsync(async(req,res)=>{
     let {id}= req.params;
     await Listing.findByIdAndDelete(id);
     res.redirect("/listings");
+}));
+
+//for all routes
+app.use((req, res, next) => {
+    next(new ExpressError(404, "Page Not Found"));
 });
-
-
-
 // app.get("/testlisting",async(req,res)=>{
 //     let sample= new Listing({
 //         title: "new home",
 //         description: "this is a beautful home",
 //         image:"",
-//         price:1200,
+//         price:1200,+
 //         location:"karnataka",
 //         country:"india"
 //         });
@@ -101,10 +136,14 @@ app.delete("/listings/:id", async(req,res)=>{
 
 // });
 
+//error middleware
 app.use((err,req,res,next)=>{
-    res.send("something went wrong")
+    let {statusCode=500, message="something went wrong"}=err;
+    //res.status(statusCo)de).send(message);
+    res.status(statusCode).render("error.ejs",{err});
 });
+
 app.listen(8080,()=>{
-    console.log("app is listening at port 80808");
+    console.log("app is listening at port 8080");
 
 });
